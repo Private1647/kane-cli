@@ -58,21 +58,36 @@ npm install -g @testmuai/kane-cli
 kane-cli whoami
 ```
 
-If this shows "not configured" or errors, run setup:
+If this shows "not configured" or errors, run login:
 
-### First-Time Setup (Agents)
+### Login (Basic Auth)
 
 ```bash
-kane-cli setup --auth-method basic --username <user> --access-key <key>
+kane-cli login --username <user> --access-key <key>
 ```
 
-This creates the default profile with basic auth. Credentials come from the user's LambdaTest dashboard (Settings → Keys).
+This creates the default profile with basic auth, auto-selects the KaneAI project, and marks setup complete. Credentials come from the user's LambdaTest dashboard (Settings → Keys).
 
-### OAuth Login (Human-Only)
+Optional flags:
+- `--profile <name>` — profile name (default: "default")
+- `--project-id <id>` — skip auto-project-fetch
+- `--folder-id <id>` — set folder directly
+- `--model <name>` — model (default: v16-alpha)
+- `--default-url <url>` — default target URL
 
-OAuth requires the interactive Ink UI — **agents cannot run this directly**. If OAuth is needed, ask the user to run it themselves:
+### Login (OAuth)
 
-> You need to log in to kane-cli first. Please run `! kane-cli login` and complete the browser sign-in.
+```bash
+kane-cli login --oauth
+```
+
+This opens the browser for OAuth consent and waits for the callback. Works in both TTY and non-TTY (agent) mode.
+
+### Login (Interactive — TTY only)
+
+In a terminal, run `kane-cli login` with no flags for the interactive wizard (auth method → project picker → folder picker). If the user needs this, ask them to run it directly:
+
+> Please run `! kane-cli login` and complete the sign-in.
 
 ### Verify
 
@@ -313,8 +328,8 @@ for each line of NDJSON:
     "vision_input": 5000,
     "vision_output": 200
   },
-  "session_dir": "~/.testmuai/kaneai/sessions/2026-04-05_14-30-45_a1b2c3",
-  "run_dir": "~/.testmuai/kaneai/sessions/2026-04-05_14-30-45_a1b2c3/runs/0",
+  "session_dir": "~/.testmuai/kaneai/sessions/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "run_dir": "~/.testmuai/kaneai/sessions/a1b2c3d4-e5f6-7890-abcd-ef1234567890/runs/0",
   "test_url": "https://test-manager.lambdatest.com/projects/123/test-cases/456"
 }
 ```
@@ -546,22 +561,14 @@ Status icons: ✅ passed · ❌ failed · ⚠️ stuck/timeout
 
 ### Config Commands
 
-**Agent-usable (non-interactive):**
 ```bash
-kane-cli config show                    # Show all current settings
-kane-cli config set-url <url>           # Default target URL
-kane-cli config set-window <W>x<H>     # Browser window size (e.g. 1920x1080)
+kane-cli config show                          # Show all current settings
+kane-cli config set-url <url>                 # Default target URL
+kane-cli config set-window <W>x<H>           # Browser window size (e.g. 1920x1080)
+kane-cli config chrome-profile <path>         # Chrome profile path (or interactive picker in TTY)
+kane-cli config project <project-id>          # TMS project ID (or interactive picker in TTY)
+kane-cli config folder <folder-id>            # TMS folder ID (or interactive picker in TTY)
 ```
-
-**Human-only (interactive Ink UI):**
-```bash
-kane-cli config set-chrome-profile      # Interactive Chrome profile picker
-kane-cli config set-project             # Interactive TMS project picker
-kane-cli config set-folder              # Interactive TMS folder picker
-```
-
-For interactive config commands, ask the user to run them directly:
-> Please run `! kane-cli config set-project` to select your TMS project.
 
 ### Feedback
 
