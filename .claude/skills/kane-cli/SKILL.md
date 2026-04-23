@@ -73,7 +73,6 @@ Optional flags:
 - `--project-id <id>` — skip auto-project-fetch
 - `--folder-id <id>` — set folder directly
 - `--model <name>` — model (default: v16-alpha)
-- `--default-url <url>` — default target URL
 
 ### Login (OAuth)
 
@@ -112,7 +111,6 @@ kane-cli run "<objective>" --agent [options]
 
 | Flag | Purpose | Default |
 |------|---------|---------|
-| `--url <url>` | Starting URL | Last used or configured URL |
 | `--headless` | No visible browser window | Off (browser visible) |
 | `--max-steps <n>` | Limit agent reasoning steps | 30 |
 | `--timeout <s>` | Kill run after N seconds | No limit |
@@ -168,21 +166,21 @@ Override per-run with `--global-context` / `--local-context` flags.
 
 ```bash
 # Simple browser task
-kane-cli run "Search for 'laptop' on Amazon" --agent --url https://www.amazon.in
+kane-cli run "Go to https://www.amazon.in and search for 'laptop'" --agent
 
 # Headless with timeout
-kane-cli run "Verify login page loads" --agent --url https://app.example.com --headless --timeout 60
+kane-cli run "Go to https://app.example.com and verify login page loads" --agent --headless --timeout 60
 
 # With variables
-kane-cli run "Login with {{username}} and {{password}}" --agent --url https://app.example.com \
+kane-cli run "Go to https://app.example.com and login with {{username}} and {{password}}" --agent \
   --variables '{"username": {"value": "alice"}, "password": {"value": "secret123", "secret": true}}'
 
 # Remote browser (LambdaTest grid)
-kane-cli run "Add item to cart" --agent --url https://shop.example.com \
+kane-cli run "Go to https://shop.example.com and add item to cart" --agent \
   --ws-endpoint "wss://cdp.lambdatest.com/playwright?capabilities=..."
 
 # With variables file
-kane-cli run "Login and verify dashboard" --agent --url https://staging.myapp.com \
+kane-cli run "Go to https://staging.myapp.com, login and verify dashboard" --agent \
   --variables-file ./test-creds.json --headless --timeout 120
 ```
 
@@ -248,12 +246,14 @@ Chain action → extraction → assertion in a single objective:
 | Be specific: "click the 'Add to Cart' button" | Be vague: "add the item" |
 | Name extractions: "store X as 'price'" | Hope for values: "tell me the price" |
 | Use `{{variables}}` for credentials/URLs | Hardcode secrets in the objective |
-| Include starting URL via `--url` | Assume the agent knows where to start |
+| Include starting URL in the objective: "Go to https://..." | Assume the agent knows where to start |
 | Split mega-objectives (>15 steps) into multiple runs | Cram everything into one massive objective |
 
 ---
 
-## 5. Parsing NDJSON Output (--agent mode)
+## 5. Parsing Output (--agent mode)
+
+> **Internal reference only.** Everything in this section (field names, event types, JSON structure) is for you to parse programmatically. **Never expose these internal terms to the user.** The user should see plain-language summaries, not `run_end`, `final_state`, `bifurcation`, `NDJSON`, `session_dir`, or any raw JSON fields.
 
 With `--agent`, kane-cli outputs one JSON object per line to **stdout**. Progress UI renders to **stderr**.
 
@@ -273,7 +273,7 @@ With `--agent`, kane-cli outputs one JSON object per line to **stdout**. Progres
 | `status` | string | `"passed"` or `"failed"` |
 | `remark` | string | What the agent did or why it failed |
 
-These are **untyped** — they have no `type` field. Do **not** key on `event.type === 'step_start'` or `'step_end'`; those event types are not emitted in v0.1.x.
+These are **untyped** — they have no `type` field. Do **not** key on `event.type === 'step_start'` or `'step_end'`; those event types are not emitted.
 
 **Flow events:**
 
@@ -285,7 +285,7 @@ These are **untyped** — they have no `type` field. Do **not** key on `event.ty
 | `ask_user` | `question`, `step_index`, `options?` | Agent needs user input |
 | `error` | `message` | Error occurred |
 
-**Note:** There is no `run_start` event in v0.1.x — the first line is either a `bifurcation` or a progress object.
+**Note:** There is no `run_start` event — the first line is either a `bifurcation` or a progress object.
 
 **Note:** `ask_user` is auto-disabled when stdin is not a TTY. Since agents typically run kane-cli as a subprocess, ask_user events will not be emitted. Write objectives that don't require interactive input.
 
@@ -358,82 +358,86 @@ To cancel a run:
 
 ---
 
-## 6. Post-Run Presentation
+## 6. Presenting Results to the User
 
-**After every run, present rich structured output.** Never just say "it passed" — always show the full picture.
+> **Golden rule:** The user should feel like they're watching a browser task happen, not reading a log file. Use plain language, never expose internal field names, JSON keys, file paths, or technical jargon. Translate everything into what the user cares about.
 
-### 🎯 Action Runs
+### 📢 Live Progress (During the Run)
 
-| Field | Value |
+**Do not stay silent while kane-cli runs.** As the command executes, keep the user informed:
+
+1. **Before starting** — Tell the user what you're about to do:
+   > Starting browser task: searching for 'laptop' on Amazon...
+
+2. **As steps complete** — Relay each step's outcome in plain language as it happens. Parse the progress events from stdout and narrate them:
+   > Step 1: Opened Amazon homepage
+   > Step 2: Typed 'laptop' in the search bar
+   > Step 3: Clicked the search button
+   > Step 4: Search results loaded — found product listings
+
+3. **If something goes wrong mid-run** — Flag it immediately, don't wait for the final result:
+   > Step 5: Could not find the 'Add to Cart' button — the agent is retrying...
+
+This keeps the user engaged and lets them intervene early if the task is going in the wrong direction.
+
+### 📋 Results Summary (After the Run)
+
+**After every run, present a clear summary.** Never just say "it passed" — show the full picture in a user-friendly format.
+
+**Successful run:**
+
+| | |
 |-------|-------|
-| 🟢 Status | passed |
-| 🎯 Objective | Search for 'laptop' on Amazon |
-| ⏱️ Duration | 45.2s |
-| 👣 Steps | 7 |
-| 🌐 Final URL | https://www.amazon.in/s?k=laptop |
-| 📝 Summary | Navigated to Amazon, typed 'laptop' in search, clicked search button, results loaded |
-| 🔗 Test URL | [View in KaneAI Dashboard](https://test-manager.lambdatest.com/...) |
+| 🟢 **Result** | Passed |
+| 🎯 **Task** | Search for 'laptop' on Amazon |
+| ⏱️ **Duration** | 45.2s |
+| 👣 **Steps taken** | 7 |
+| 📝 **What happened** | Opened Amazon, typed 'laptop' in search, clicked search, results loaded with 48 products |
+| 🔗 **View details** | [Open in KaneAI Dashboard](https://test-manager.lambdatest.com/...) |
 
-### 📦 Extraction Runs (objectives with "store as")
+**If data was extracted** (from "store as" objectives), show it as a clean results table:
 
-Same table as above, plus a separate extraction table:
-
-| 📦 Variable | Extracted Value |
+| 📦 What was found | Value |
 |-------------|----------------|
-| `top_repo` | freeCodeCamp/freeCodeCamp |
-| `top_stars` | 413k |
-| `price` | $29.99 |
+| Top repository | freeCodeCamp/freeCodeCamp |
+| Star count | 413k |
+| Price | $29.99 |
 
-### ✅ Assertion Runs
+**If assertions were checked**, show pass/fail for each:
 
-Same table as above, plus assertion results:
-
-| ✅ Assertion | Result |
+| ✅ Check | Result |
 |-------------|--------|
 | Dashboard shows welcome message | 🟢 Passed |
 | User role is Admin | 🔴 Failed |
 
-### 🏆 Rating
+### ❌ When Things Go Wrong
 
-Rate every run on a **1–10 scale**:
+For failed runs, explain **what went wrong in plain language**:
 
-| Score | Criteria |
-|-------|----------|
-| **9–10** | 🌟 Objective fully met. All extractions captured. No wasted steps. |
-| **7–8** | 👍 Objective met with minor issues: extra steps, retries, slow navigation. |
-| **5–6** | 🤔 Partially met. Some extractions missing or assertions skipped. |
-| **3–4** | 👎 Mostly failed. Agent got stuck, looped, or wrong actions. |
-| **1–2** | 💥 Total failure. Crashed, never started, or completely wrong. |
+- 🔍 **What failed** — describe the step that failed and why, in the user's terms (not "step_003.json shows dom_action error")
+- 📸 **Screenshot** — if a screenshot exists, read and show it so the user can see what the browser looked like at the point of failure
+- 💡 **Why it likely failed** — your diagnosis: was the element missing? Did the page not load? Was the objective ambiguous?
+- 🔧 **Suggested fix** — a concrete next step: rephrase the objective, increase timeout, check auth, etc.
 
-Always present as:
+**Example of a good failure report:**
 
-> **🏆 Agent Rating: X/10** — One-line reason.
+> 🔴 **Failed** at step 5 of 9 (after 25s)
+>
+> **What happened:** The agent clicked "Proceed to Checkout" but the payment form never appeared. The page showed a loading spinner for 15 seconds before the agent timed out.
+>
+> **Likely cause:** The checkout page may require authentication, or the site's payment service was slow/down.
+>
+> **Suggested fix:** Try adding an explicit login step before checkout, or increase the timeout to 120s.
 
-### ❌ Failed Runs
+### 🐛 Suggesting a Bug Report
 
-For failed runs, additionally show:
-- 🔍 **Failure step** — which step failed and why
-- 📸 **Screenshot** — path to the failing step's screenshot
-- 💡 **Diagnosis** — your analysis of what went wrong
+If the failure looks like a **kane-cli bug** (not auth, timeout, or a vague objective), offer to file a report:
 
-### 🐛 Bug Report Suggestion (Rating ≤ 6)
+> This looks like it might be a bug in kane-cli. Want me to file a report?
 
-If the failure looks like an **agent bug** (not auth, timeout, or vague objective), suggest filing a bug:
+File at: **https://github.com/LambdaTest/kane-cli/issues**. Gather the details automatically — don't ask the user to dig through log files.
 
-> 🐛 This looks like an agent bug. Want me to file a report?
-
-File at: **https://github.com/LambdaTest/kane-cli/issues** using the bug report template.
-
-Required fields:
-- **kane-cli version** — run `kane-cli --version`
-- **OS** — macOS (Apple Silicon), macOS (Intel), Linux (x64), Linux (ARM64), Windows (x64)
-- **Install method** — npm, Homebrew, curl installer, direct binary
-- **What happened** — describe the bug
-- **Steps to reproduce** — the `kane-cli run` command and objective used
-- **Expected behavior** — what should have happened
-- **Error output / logs** — `run_summary.json`, failing `step_NNN.json`, screenshot
-
-**Do NOT suggest bug reports for:** auth issues, low timeouts, vague objectives, site-side errors (500s, CAPTCHAs).
+**Do NOT suggest bug reports for:** auth issues, low timeouts, vague objectives, or website errors (500s, CAPTCHAs).
 
 ---
 
@@ -511,7 +515,7 @@ Each sub-objective must be **self-contained**: navigates to its own URL, authent
 1. Decompose the user's request into N independent sub-objectives
 2. Spawn N Agent tool calls in a **single message** — each runs:
    ```bash
-   kane-cli run "<sub-objective>" --agent --headless --timeout 120
+   kane-cli run "Go to <url> and <sub-objective>" --agent --headless --timeout 120
    ```
 3. Each agent parses the NDJSON output, waits for `run_end`, returns: status, steps, duration, summary, session path
 4. After ALL agents complete, format the batch summary
@@ -521,7 +525,7 @@ Each sub-objective must be **self-contained**: navigates to its own URL, authent
 ```
 Run this kane-cli browser test and report results:
 
-    kane-cli run "<objective>" --agent --headless --timeout 120
+    kane-cli run "Go to <url> and <objective>" --agent --headless --timeout 120
 
 After the command completes:
 1. Capture the exit code
@@ -534,26 +538,26 @@ After the command completes:
 
 ```markdown
 ## 🧪 Test Suite: <suite name>
-**📅 Run at:** 2026-04-14 14:30 UTC
 
-| # | Test | Status | Steps | Time | Summary |
+| # | Test | Status | Steps | Time | What happened |
 |---|------|--------|-------|------|---------|
 | 1 | Login + dashboard | ✅ | 5 | 12s | Welcome banner visible |
 | 2 | Product search | ✅ | 7 | 18s | 3 results for 'shoes' |
 | 3 | Checkout flow | ❌ | 9 | 25s | Payment form did not load |
 | 4 | Admin CSV export | ✅ | 6 | 15s | CSV downloaded (42 rows) |
 
-### 📊 Aggregates
+### 📊 Overall
 - **Pass rate:** 3/4 (75%)
 - **Total steps:** 27 · **Total time:** 1m10s
-- **Avg steps/test:** 6.75 · **Avg time/test:** 17.5s
 
 ### ❌ Failures
 **#3 Checkout flow** — Payment form did not load after clicking "Credit Card".
-📸 Screenshot: `~/.testmuai/kaneai/sessions/<id>/runs/0/run-test/screenshots/step_008.png`
+📸 [screenshot of the failure shown inline]
 ```
 
 Status icons: ✅ passed · ❌ failed · ⚠️ stuck/timeout
+
+**Do not** show raw file paths (like `~/.testmuai/kaneai/sessions/...`) in the summary. Instead, read the screenshot and show it inline, or offer to inspect logs only if the user asks.
 
 ---
 
@@ -563,7 +567,6 @@ Status icons: ✅ passed · ❌ failed · ⚠️ stuck/timeout
 
 ```bash
 kane-cli config show                          # Show all current settings
-kane-cli config set-url <url>                 # Default target URL
 kane-cli config set-window <W>x<H>           # Browser window size (e.g. 1920x1080)
 kane-cli config chrome-profile <path>         # Chrome profile path (or interactive picker in TTY)
 kane-cli config project <project-id>          # TMS project ID (or interactive picker in TTY)
