@@ -93,7 +93,7 @@ kane-cli uploads run artifacts to TestmuAI TMS at the end of the session. If the
 If `kane-cli run` ends with exit status 2 and the run produces no stdout or stderr after the early startup lines, one of two things is usually happening:
 
 1. **Authentication or setup is missing.** This is the common case on a fresh machine. Run `kane-cli whoami`; if it reports "not configured", re-run `kane-cli login` (or pass `--username` / `--access-key` in non-interactive environments). See also ["Authentication failed"](#authentication-failed) above.
-2. **kane-cli was installed via an unsupported package manager** — most commonly **pnpm**. pnpm places the project-root `node_modules/` one level deeper than npm does, and the resolver for the bundled `v16-runner` binary does not yet search that deep, so the CLI aborts before it can print a useful error. This limitation is tracked in [issue #24](https://github.com/LambdaTest/kane-cli/issues/24); switch to one of the supported install paths listed in [Install with pnpm or yarn](./installation.md#install-with-pnpm-or-yarn) as a workaround.
+2. **kane-cli was installed via an unsupported package manager** — most commonly **pnpm**. pnpm stores packages under a nested `node_modules/.pnpm/` directory, and the resolver for the bundled `v16-runner` binary does not yet search that layout, so the CLI aborts before it can print a useful error. This limitation is tracked in [issue #24](https://github.com/LambdaTest/kane-cli/issues/24); switch to one of the supported install paths listed in [Install with pnpm or yarn](./installation.md#install-with-pnpm-or-yarn) as a workaround.
 
 To surface the underlying error instead of a silent exit, re-run the same command with `KANE_DEV_MODE=1`:
 
