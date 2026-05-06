@@ -25,7 +25,7 @@ If your global `npm` prefix is not on `PATH`, add it before running `kane-cli`. 
 
 ## Install with pnpm or yarn
 
-Installing kane-cli via **pnpm** is not currently supported. pnpm uses a different `node_modules` layout (the project-root `node_modules/` is one level deeper than with npm), and kane-cli's resolver for the platform-specific `v16-runner` binary does not yet search deep enough to find it. The symptom is a silent exit with status 2 shortly after startup — see [CLI exits with code 2 and no output](./troubleshooting.md#cli-exits-with-code-2-and-no-output) in the troubleshooting guide. This limitation is tracked in [issue #24](https://github.com/LambdaTest/kane-cli/issues/24).
+Installing kane-cli via **pnpm** is not currently supported. pnpm places packages inside a nested `node_modules/.pnpm/` store, so the project-root `node_modules/` ends up deeper on disk than it would with npm. kane-cli's resolver for the platform-specific `v16-runner` binary does not yet search that far up the directory tree, so the runner is never found and the CLI aborts. The symptom is a silent exit with status 2 shortly after startup — see [CLI exits with code 2 and no output](./troubleshooting.md#cli-exits-with-code-2-and-no-output) in the troubleshooting guide. This limitation is tracked in [issue #24](https://github.com/LambdaTest/kane-cli/issues/24).
 
 Until that is resolved, install kane-cli through one of the supported paths:
 
